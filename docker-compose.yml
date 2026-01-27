@@ -1,0 +1,64 @@
+services:
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+
+  api:
+    build: ./backend
+    user: "1000:1000"
+    env_file:
+      - .env
+    environment:
+      - UIQA_DB_URL=sqlite:////app/data/uiqa.sqlite
+      - UIQA_REDIS_URL=redis://redis:6379/0
+      - UIQA_ARTIFACTS_DIR=/app/artifacts
+      - UIQA_GITHUB_TOKEN=${UIQA_GITHUB_TOKEN:-}
+      # Claude Code MCP settings
+      - UIQA_CLAUDE_MCP_CMD=npx
+      - UIQA_CLAUDE_MCP_ARGS_JSON=["-y","@steipete/claude-code-mcp@latest"]
+      - HOME=/home/node
+    volumes:
+      - ./backend:/app
+      - ./data:/app/data
+      - ./artifacts:/app/artifacts
+    ports:
+      - "8000:8000"
+    depends_on:
+      - redis
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+
+  worker:
+    build: ./backend
+    user: "1000:1000"
+    env_file:
+      - .env
+    environment:
+      - UIQA_DB_URL=sqlite:////app/data/uiqa.sqlite
+      - UIQA_REDIS_URL=redis://redis:6379/0
+      - UIQA_ARTIFACTS_DIR=/app/artifacts
+      - UIQA_GITHUB_TOKEN=${UIQA_GITHUB_TOKEN:-}
+      # Claude Code uses ANTHROPIC_API_KEY from .env (mapped from ANTHROPIC_AUTH_TOKEN)
+      - ANTHROPIC_API_KEY=${ANTHROPIC_AUTH_TOKEN}
+      - UIQA_CLAUDE_MCP_CMD=npx
+      - UIQA_CLAUDE_MCP_ARGS_JSON=["-y","@steipete/claude-code-mcp@latest"]
+      - HOME=/home/node
+    volumes:
+      - ./backend:/app
+      - ./data:/app/data
+      - ./artifacts:/app/artifacts
+      - /tmp:/tmp
+    depends_on:
+      - redis
+    command: celery -A app.worker.celery_app worker -l info
+
+  ui:
+    build: ./ui
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_BASE=http://localhost:8000
+    depends_on:
+      - api
+    command: npm run dev -- --host 0.0.0.0 --port 5173
+
