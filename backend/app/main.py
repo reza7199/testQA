@@ -116,12 +116,22 @@ def stream_events(run_id: str):
     return StreamingResponse(gen(), media_type="text/event-stream")
 
 def _run_out(r: Run) -> RunOut:
+    # تبدیل summary_json از string به dict
+    summary_data = {}
+    if r.summary_json:
+        try:
+            import json
+            summary_data = json.loads(r.summary_json)
+        except:
+            summary_data = {"error": "Invalid JSON"}
+    
     return RunOut(
         id=r.id, status=r.status, created_at=r.created_at, started_at=r.started_at, finished_at=r.finished_at,
         repo_url=r.repo_url, branch=r.branch, commit_sha=r.commit_sha,
         app_dir=r.app_dir, ui_dir=r.ui_dir, suite=r.suite,
         create_github_issues=bool(r.create_github_issues), commit_results=bool(r.commit_results),
-        summary_json=r.summary_json, error_message=r.error_message
+        summary_json=summary_data,  # حالا دیکشنری هست
+        error_message=r.error_message
     )
 
 
